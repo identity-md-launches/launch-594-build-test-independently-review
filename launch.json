@@ -1,0 +1,25 @@
+{
+  "kind": "evm_project",
+  "token": {
+    "contract": "LaunchToken",
+    "name": "lumineon",
+    "symbol": "lumi",
+    "decimals": 18
+  },
+  "contracts": [
+    {
+      "contract": "LumineonPriceFeed",
+      "constructorArgs": [
+        "$owner",
+        "0x5598Aa9146215Bc13eb26f2c692Ad1461Fd32982"
+      ]
+    }
+  ],
+  "pool": {
+    "pairedCurrency": "0x0000000000000000000000000000000000000000",
+    "fee": 3000,
+    "tickSpacing": 60,
+    "initialPrice": "79228162514264337593543950336"
+  },
+  "notes": "Draft written by the build step; the manifest step confirms or replaces it. Sepolia (11155111). LumineonPriceFeed(address owner_, address attester_): owner_ is the requester's $owner and is the only wallet able to call approveQuestion(bytes32), which admits one IMD oracle request's questionHash; it cannot set or change a price. attester_ is IMD's attestation signer as reported by GET https://api.imd.fun/oracle/requests (field attester) on 2026-10-02 and recovered from a live signature in test/RealAttestationCompatibility.t.sol. The feed deploys with no price; the first observation arrives when a request made from docs/oracle-request-template.json (consumer = {11155111, feed address lowercase}, panel 20, quorum 14, toleranceBps 0, validForSeconds 86400) is attested, approved by the owner and relayed by anyone via submitAttestation. The factory supplies PoolInitializationGuard, LP and MerkleDistributor; the pool pairs lumi with native ETH and opens at the network's trading fee. LaunchToken has no constructor arguments and the feed never touches it."
+}

@@ -1,0 +1,986 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "owner_",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "attester_",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "ANSWER_TYPE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "CARD_NAME",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "CARD_NUMBER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "CURRENCY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "DENOMINATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "DOMAIN_SEPARATOR",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "GAME",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "GRADE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "GRADING_COMPANY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "LANGUAGE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_AGE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MIN_PANEL_SIZE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MIN_QUORUM",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "PRICE_DEFINITION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "PRICE_SOURCE_URL",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "QUESTION_CHAIN_ID",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "QUESTION_TEXT_HASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "SET_NAME",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "acceptOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "approveQuestion",
+    "inputs": [
+      {
+        "name": "questionHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "approvedQuestions",
+    "inputs": [
+      {
+        "name": "questionHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "approved",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "attester",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "description",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "hasObservation",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isFresh",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "latestObservation",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "observation",
+        "type": "tuple",
+        "internalType": "struct LumineonPriceFeed.Observation",
+        "components": [
+          {
+            "name": "priceCents",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "requestId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "questionHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "panelJobId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "issuedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "expiresAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "receivedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "panelSize",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "quorum",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "agreed",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
+      },
+      {
+        "name": "fresh",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "observationAge",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingOwner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "priceCents",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "cents",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "issuedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "submitAttestation",
+    "inputs": [
+      {
+        "name": "a",
+        "type": "tuple",
+        "internalType": "struct OracleAttestation.Attestation",
+        "components": [
+          {
+            "name": "requestId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "chainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "questionHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "answerType",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "answer",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "figure",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fromBlock",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "toBlock",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "blockHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "panelJobId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "panelSize",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "quorum",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "agreed",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "issuedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "expiresAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          }
+        ]
+      },
+      {
+        "name": "sig",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "usedRequests",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "used",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferStarted",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PriceUpdated",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "questionHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "priceCents",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "issuedAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "expiresAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "receivedAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "panelSize",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "quorum",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "agreed",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "relayer",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "QuestionApproved",
+    "inputs": [
+      {
+        "name": "questionHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "approver",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AnswerFigureMismatch",
+    "inputs": [
+      {
+        "name": "decoded",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "figure",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "AttestationExpired",
+    "inputs": [
+      {
+        "name": "expiresAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "blockTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "AttestationTooOld",
+    "inputs": [
+      {
+        "name": "issuedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "blockTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InconsistentCounts",
+    "inputs": [
+      {
+        "name": "panelSize",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "quorum",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "agreed",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InsufficientAgreement",
+    "inputs": [
+      {
+        "name": "agreed",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "quorum",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InsufficientPanel",
+    "inputs": [
+      {
+        "name": "panelSize",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InsufficientQuorum",
+    "inputs": [
+      {
+        "name": "quorum",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidConfiguration",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidSignature",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidValidity",
+    "inputs": [
+      {
+        "name": "issuedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "expiresAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "IssuedInFuture",
+    "inputs": [
+      {
+        "name": "issuedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "blockTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "MalformedAnswer",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoObservation",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotNewerThanStored",
+    "inputs": [
+      {
+        "name": "issuedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "storedIssuedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "NotOwner",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotPendingOwner",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "QuestionAlreadyApproved",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "QuestionNotApproved",
+    "inputs": [
+      {
+        "name": "questionHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "RequestAlreadyUsed",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "StalePrice",
+    "inputs": [
+      {
+        "name": "issuedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "expiresAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "blockTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "WrongAnswerType",
+    "inputs": [
+      {
+        "name": "answerType",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "WrongQuestionChain",
+    "inputs": [
+      {
+        "name": "chainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ZeroAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroPrice",
+    "inputs": []
+  }
+]

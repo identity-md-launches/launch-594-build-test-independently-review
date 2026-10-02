@@ -1,0 +1,30 @@
+{
+  "$comment": "Body for IMD `oracle.request` (https://imd.fun/docs/#oracle-body). Replace FEED_ADDRESS_LOWERCASE with the deployed LumineonPriceFeed address in lowercase; everything else is fixed. The question text is byte-identical to the one in request ac82ce11-8ed0-48ef-bbba-49eea11c23b1 and hashes (keccak256, UTF-8) to LumineonPriceFeed.QUESTION_TEXT_HASH = 0x3fbd772da2fd23d430b982d57a8e50a2e9a72e51764c7029881b4f30cabcce77. After paying, read `questionHash` from GET /oracle/requests/<id> and have the feed owner call approveQuestion(questionHash) before the attestation is relayed.",
+  "v": 1,
+  "question": "What is the current PSA 10 price in US dollars reported by PriceCharting for the English Pokémon TCG card Lumineon V, Crown Zenith: Galarian Gallery, card number GG39/GG70?\n\nUse off-chain public web evidence. Return the answer as an unsigned integer representing USD cents.\n\nCard identity:\n- Name: Lumineon V\n- Set: Crown Zenith: Galarian Gallery\n- Card number: GG39/GG70\n- Language: English\n- Grading company: PSA\n- Grade: 10\n\nAuthoritative pricing source:\nhttps://www.pricecharting.com/game/pokemon-crown-zenith/lumineon-v-gg39\n\nPrice definition: the headline price-guide estimate explicitly labelled “PSA 10” on that page, observed during this assessment. Read the live source page. Do not substitute an individual sale, asking price, another grading company's price, an ungraded value, or a cached search-result snippet. Do not average different sources.\n\nUse the displayed USD amount without adding shipping, tax, or fees. Multiply by 100 to express it in whole US cents.\n\nIn the supporting evidence, include the source URL, retrieval time in UTC, the exact displayed USD value, and confirmation that the card and grade match. State any source update timestamp shown; do not invent one.\n\nIf the live PSA 10 value cannot be verified, report inability to determine the answer. Do not guess or return zero as a substitute.",
+  "chainId": 1,
+  "window": { "hours": 1 },
+  "answerType": "uint256",
+  "evidence": "panel",
+  "panelSize": 20,
+  "quorum": 14,
+  "toleranceBps": 0,
+  "validForSeconds": 86400,
+  "definitions": {
+    "card": "English Pokémon TCG, Crown Zenith: Galarian Gallery, Lumineon V, card number GG39/GG70, graded PSA 10.",
+    "source": "Only https://www.pricecharting.com/game/pokemon-crown-zenith/lumineon-v-gg39, read live during the assessment.",
+    "metric": "The headline price-guide estimate explicitly labelled 'PSA 10' on that page: a published benchmark observation, not an individual sale, asking price, guaranteed resale value or an average across sources.",
+    "units": "Whole US cents: the displayed USD amount multiplied by 100, excluding shipping, taxes and fees. Exact agreement is required (toleranceBps 0).",
+    "missing": "If the PSA 10 value cannot be verified live, report inability to determine the answer. Never guess and never return zero."
+  },
+  "guards": {
+    "sources": ["https://www.pricecharting.com/game/pokemon-crown-zenith/lumineon-v-gg39"],
+    "minSources": 1,
+    "min": "1",
+    "max": "100000000"
+  },
+  "consumer": {
+    "chainId": 11155111,
+    "verifyingContract": "FEED_ADDRESS_LOWERCASE"
+  }
+}

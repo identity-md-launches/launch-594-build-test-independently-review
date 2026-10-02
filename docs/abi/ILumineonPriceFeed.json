@@ -1,0 +1,142 @@
+[
+  {
+    "type": "function",
+    "name": "description",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "hasObservation",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isFresh",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "latestObservation",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "observation",
+        "type": "tuple",
+        "internalType": "struct ILumineonPriceFeed.Observation",
+        "components": [
+          {
+            "name": "priceCents",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "requestId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "questionHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "panelJobId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "issuedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "expiresAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "receivedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "panelSize",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "quorum",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "agreed",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
+      },
+      {
+        "name": "fresh",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "observationAge",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "priceCents",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "cents",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "issuedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  }
+]
