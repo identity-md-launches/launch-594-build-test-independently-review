@@ -77,7 +77,7 @@ contract RealAttestationCompatibilityTest is Test {
         address owner = makeAddr("owner");
         LumineonPriceFeed feed = new LumineonPriceFeed(owner, IMD_ATTESTER);
         vm.prank(owner);
-        feed.approveQuestion(REAL_QUESTION_HASH);
+        feed.approveRequest(realAttestation().requestId, REAL_QUESTION_HASH);
         // Everything but the domain is valid; the signature was made for (1, 0x0), not (11155111, feed).
         vm.expectRevert(LumineonPriceFeed.InvalidSignature.selector);
         feed.submitAttestation(realAttestation(), realSignature());

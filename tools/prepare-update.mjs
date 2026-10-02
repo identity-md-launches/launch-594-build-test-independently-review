@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Prepare LumineonPriceFeed.submitAttestation calldata from IMD's attestation API response.
 //
-//   node tools/prepare-update.mjs <attestation.json> [--feed 0x...] [--chain 11155111] [--now <unix>]
+//   node tools/prepare-update.mjs <attestation.json> --feed 0x... [--chain 11155111] [--now <unix>]
 //
 // <attestation.json> is the body of GET https://api.imd.fun/oracle/requests/<id>/attestation
 // (save it with curl). The script never signs, never asks for a key and never talks to a chain.
@@ -119,27 +119,30 @@ function main() {
   const argv = process.argv.slice(2);
   const file = argv.find((a) => !a.startsWith("--"));
   const opt = (name, dflt) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : dflt; };
-  if (!file) {
-    console.error("usage: node tools/prepare-update.mjs <attestation.json> [--feed 0x...] [--chain 11155111] [--now unix]");
+  const feed = (opt("--feed", "") ?? "").toLowerCase();
+  if (!file || !/^0x[0-9a-f]{40}$/.test(feed) || /^0x0{40}$/.test(feed)) {
+    console.error("usage: node tools/prepare-update.mjs <attestation.json> --feed 0x... [--chain 11155111] [--now unix]");
+    console.error("--feed is required and must be the intended nonzero consumer address from your deployment.");
     process.exit(2);
   }
   const body = JSON.parse(readFileSync(file, "utf8"));
   const { domain, message: m, signature, signer } = body;
   if (!m || !signature) throw new Error("file is not an attestation response (needs message and signature)");
 
-  const feed = (opt("--feed", domain?.verifyingContract) ?? "").toLowerCase();
-  const chain = Number(opt("--chain", domain?.chainId ?? 11155111));
+  // Expected deployment values must be independent of the response being checked.
+  const chain = Number(opt("--chain", 11155111));
   const now = Number(opt("--now", Math.floor(Date.now() / 1000)));
 
   const enc = encodeSubmitAttestation(m, signature);
   const problems = [];
   const attester = "0x5598aa9146215bc13eb26f2c692ad1461fd32982";
+  if (!Number.isSafeInteger(chain) || chain <= 0) problems.push("expected --chain must be a positive integer");
   if (domain) {
     if (domain.name !== "IdentityMD Oracle" || String(domain.version) !== "2") problems.push(`domain is ${domain.name} v${domain.version}; the feed verifies "IdentityMD Oracle" v2`);
     if (Number(domain.chainId) !== chain) problems.push(`signed domain chainId ${domain.chainId} != consumer chain ${chain}`);
     if ((domain.verifyingContract ?? "").toLowerCase() !== feed) problems.push(`signed verifyingContract ${domain.verifyingContract} != feed ${feed} (was consumer set on the request?)`);
     if (/^0x0{40}$/.test(domain.verifyingContract ?? "")) problems.push("signed under IMD's default domain (verifyingContract 0x0): no consumer can accept it");
-  }
+  } else problems.push("response is missing its signed domain");
   if (signer && signer.toLowerCase() !== attester) problems.push(`signer ${signer} is not the pinned attester ${attester}`);
   if (Number(m.chainId) !== 1) problems.push(`message chainId ${m.chainId} != QUESTION_CHAIN_ID 1`);
   if (enc.answerType !== 3) problems.push(`answerType ${m.answerType} is not uint256`);
@@ -165,7 +168,7 @@ function main() {
     calldata: enc.calldata,
     offlineChecks: problems.length ? problems : ["all offline checks pass"],
     stillCheckedOnChain: [
-      "approvedQuestions(questionHash) must be true (owner approves it first)",
+      "approvedRequests(requestId) must equal questionHash (owner checks and approves this specific request first)",
       "usedRequests(requestId) must be false",
       "issuedAt must be strictly newer than the stored observation",
       "signature must verify against the deployed feed's DOMAIN_SEPARATOR",
@@ -173,7 +176,9 @@ function main() {
   };
   console.log(JSON.stringify(out, null, 2));
   console.log("\n# Owner step (once per request), from the owner's wallet:");
-  console.log(`cast send ${feed || "<FEED>"} "approveQuestion(bytes32)" ${m.questionHash} --rpc-url <SEPOLIA_RPC> --ledger   # or --keystore / --interactive`);
+  console.log("# Verify this actual request ID's full question, definitions, evidence, consumer and settings first.");
+  console.log("# Require zero numeric tolerance and the template's guards; these policy fields are not signed by v2.");
+  console.log(`cast send ${feed} "approveRequest(bytes32,bytes32)" ${m.requestId} ${m.questionHash} --rpc-url <SEPOLIA_RPC> --ledger   # or --keystore / --interactive`);
   console.log("\n# Relay step (anyone), raw calldata so no ABI file is needed:");
   console.log(`cast send ${feed || "<FEED>"} ${enc.calldata} --rpc-url <SEPOLIA_RPC> --ledger   # or --keystore / --interactive`);
   console.log("\n# Dry run first (no wallet needed):");

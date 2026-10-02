@@ -44,6 +44,6 @@ contract DeployTest is Test {
         assertEq(feed.owner(), owner);
         vm.prank(factory);
         vm.expectRevert(LumineonPriceFeed.NotOwner.selector);
-        feed.approveQuestion(bytes32(uint256(1)));
+        feed.approveRequest(bytes32(uint256(1)), bytes32(uint256(2)));
     }
 }

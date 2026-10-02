@@ -18,7 +18,7 @@ contract LumineonPriceFeedTest is FeedTestBase {
         uint16 agreed,
         address relayer
     );
-    event QuestionApproved(bytes32 indexed questionHash, address indexed approver);
+    event RequestApproved(bytes32 indexed requestId, bytes32 indexed questionHash, address indexed approver);
 
     // ------------------------------------------------------------------ empty state
 
@@ -80,6 +80,7 @@ contract LumineonPriceFeedTest is FeedTestBase {
         // Six hours later a newer attestation with a different price and fuller agreement.
         vm.warp(T0 + 6 hours + 17);
         OracleAttestation.Attestation memory a2 = baseAttestation(12_050, T0 + 6 hours, 2);
+        approve(a2);
         a2.agreed = 19;
         submitSigned(a2);
         (o, fresh) = feed.latestObservation();
@@ -104,6 +105,7 @@ contract LumineonPriceFeedTest is FeedTestBase {
 
         // Same price, newly signed observation: accepted and fresh again.
         OracleAttestation.Attestation memory a2 = baseAttestation(11_577, T0 + 24 hours, 2);
+        approve(a2);
         submitSigned(a2);
         assertTrue(feed.isFresh());
         (uint256 cents, uint64 issuedAt) = feed.priceCents();
@@ -115,6 +117,7 @@ contract LumineonPriceFeedTest is FeedTestBase {
 
     function test_anyoneMayRelay() public {
         OracleAttestation.Attestation memory a = baseAttestation(9_999, T0, 7);
+        approve(a);
         bytes memory sig = sign(a);
         address stranger = makeAddr("stranger");
         vm.prank(stranger);
@@ -126,6 +129,7 @@ contract LumineonPriceFeedTest is FeedTestBase {
     function test_acceptsAtExactMaxAgeAndAtExpiry() public {
         // Issued exactly MAX_AGE ago, expiresAt == now: still accepted.
         OracleAttestation.Attestation memory a = baseAttestation(5_000, uint64(block.timestamp) - 24 hours, 3);
+        approve(a);
         a.expiresAt = uint64(block.timestamp);
         submitSigned(a);
         assertTrue(feed.isFresh());
@@ -135,6 +139,7 @@ contract LumineonPriceFeedTest is FeedTestBase {
 
     function test_freshnessHonoursSignedExpiryBeforeMaxAge() public {
         OracleAttestation.Attestation memory a = baseAttestation(5_000, T0, 4);
+        approve(a);
         a.expiresAt = T0 + 3600; // IMD validForSeconds 3600
         submitSigned(a);
         vm.warp(T0 + 3601);
@@ -145,6 +150,7 @@ contract LumineonPriceFeedTest is FeedTestBase {
     }
 
     function test_readingNeverRenewsFreshness() public {
+        approve(baseAttestation(5_000, T0, 5));
         submitSigned(baseAttestation(5_000, T0, 5));
         vm.warp(T0 + 23 hours);
         for (uint256 i; i < 5; ++i) {
@@ -216,22 +222,26 @@ contract LumineonPriceFeedTest is FeedTestBase {
     function test_rejectsUnapprovedQuestion() public {
         OracleAttestation.Attestation memory a = baseAttestation(11_577, T0, 1);
         a.questionHash = OTHER_QUESTION;
-        vm.expectRevert(abi.encodeWithSelector(LumineonPriceFeed.QuestionNotApproved.selector, OTHER_QUESTION));
+        vm.expectRevert(
+            abi.encodeWithSelector(LumineonPriceFeed.RequestNotApproved.selector, a.requestId, OTHER_QUESTION)
+        );
         submit(a, sign(a));
     }
 
-    function test_ownerApprovesNewQuestionThenRelayWorks() public {
-        OracleAttestation.Attestation memory a = baseAttestation(11_577, T0, 1);
+    function test_ownerApprovesNewRequestThenRelayWorks() public {
+        OracleAttestation.Attestation memory a = baseAttestation(11_577, T0, 99);
         a.questionHash = OTHER_QUESTION;
         bytes memory sig = sign(a);
-        vm.expectRevert(abi.encodeWithSelector(LumineonPriceFeed.QuestionNotApproved.selector, OTHER_QUESTION));
+        vm.expectRevert(
+            abi.encodeWithSelector(LumineonPriceFeed.RequestNotApproved.selector, a.requestId, OTHER_QUESTION)
+        );
         submit(a, sig);
 
         vm.prank(owner);
-        vm.expectEmit(true, true, false, true);
-        emit QuestionApproved(OTHER_QUESTION, owner);
-        feed.approveQuestion(OTHER_QUESTION);
-        assertTrue(feed.approvedQuestions(OTHER_QUESTION));
+        vm.expectEmit(true, true, true, true);
+        emit RequestApproved(a.requestId, OTHER_QUESTION, owner);
+        feed.approveRequest(a.requestId, OTHER_QUESTION);
+        assertEq(feed.approvedRequests(a.requestId), OTHER_QUESTION);
         submit(a, sig);
         assertTrue(feed.hasObservation());
     }
@@ -239,18 +249,24 @@ contract LumineonPriceFeedTest is FeedTestBase {
     function test_onlyOwnerApproves() public {
         vm.prank(relayer);
         vm.expectRevert(LumineonPriceFeed.NotOwner.selector);
-        feed.approveQuestion(OTHER_QUESTION);
+        feed.approveRequest(bytes32(uint256(99)), OTHER_QUESTION);
         vm.prank(attester);
         vm.expectRevert(LumineonPriceFeed.NotOwner.selector);
-        feed.approveQuestion(OTHER_QUESTION);
+        feed.approveRequest(bytes32(uint256(99)), OTHER_QUESTION);
     }
 
     function test_approveRejectsZeroAndDuplicates() public {
         vm.startPrank(owner);
         vm.expectRevert(LumineonPriceFeed.InvalidConfiguration.selector);
-        feed.approveQuestion(bytes32(0));
-        vm.expectRevert(LumineonPriceFeed.QuestionAlreadyApproved.selector);
-        feed.approveQuestion(APPROVED_QUESTION);
+        feed.approveRequest(bytes32(0), APPROVED_QUESTION);
+        vm.expectRevert(LumineonPriceFeed.InvalidConfiguration.selector);
+        feed.approveRequest(bytes32(uint256(99)), bytes32(0));
+        bytes32 requestId = baseAttestation(11_577, T0, 1).requestId;
+        vm.expectRevert(LumineonPriceFeed.RequestAlreadyApproved.selector);
+        feed.approveRequest(requestId, APPROVED_QUESTION);
+        vm.expectRevert(LumineonPriceFeed.RequestAlreadyApproved.selector);
+        feed.approveRequest(requestId, OTHER_QUESTION);
+        assertEq(feed.approvedRequests(requestId), APPROVED_QUESTION);
         vm.stopPrank();
     }
 
@@ -280,9 +296,9 @@ contract LumineonPriceFeedTest is FeedTestBase {
 
         vm.prank(owner);
         vm.expectRevert(LumineonPriceFeed.NotOwner.selector);
-        feed.approveQuestion(OTHER_QUESTION);
+        feed.approveRequest(bytes32(uint256(99)), OTHER_QUESTION);
         vm.prank(next);
-        feed.approveQuestion(OTHER_QUESTION);
+        feed.approveRequest(bytes32(uint256(99)), OTHER_QUESTION);
     }
 
     function test_ownerCannotSetPriceOrForgeAttestation() public {
@@ -433,9 +449,11 @@ contract LumineonPriceFeedTest is FeedTestBase {
     function test_rejectsOutOfOrderOlderAttestation() public {
         submitSigned(baseAttestation(11_577, T0, 1));
         OracleAttestation.Attestation memory older = baseAttestation(10_000, T0 - 1, 2);
+        approve(older);
         vm.expectRevert(abi.encodeWithSelector(LumineonPriceFeed.NotNewerThanStored.selector, T0 - 1, T0));
         submit(older, sign(older));
         OracleAttestation.Attestation memory same = baseAttestation(10_000, T0, 3);
+        approve(same);
         vm.expectRevert(abi.encodeWithSelector(LumineonPriceFeed.NotNewerThanStored.selector, T0, T0));
         submit(same, sign(same));
         (LumineonPriceFeed.Observation memory o,) = feed.latestObservation();
@@ -447,6 +465,7 @@ contract LumineonPriceFeedTest is FeedTestBase {
         vm.warp(T0 + 10 days);
         assertFalse(feed.isFresh());
         OracleAttestation.Attestation memory a = baseAttestation(8_000, T0 + 10 days - 1 hours, 2);
+        approve(a);
         submitSigned(a);
         assertTrue(feed.isFresh());
         (uint256 cents,) = feed.priceCents();

@@ -4,18 +4,18 @@ Scope: `src/LumineonPriceFeed.sol`, `src/OracleAttestation.sol`, `src/LaunchToke
 `script/Deploy.s.sol`, the test suite, `tools/prepare-update.mjs`, `docs/oracle-request-template.json`
 and the draft `launch.json`. Method: read every entry point against the eth-security and
 solidity-security-review checklists supplied with the task, reproduce each concern with a test or a
-command, and record the disposition. Tools run: `forge build`, `forge test` (67 tests, 256 fuzz runs
+command, and record the disposition. Original build checks: `forge build`, `forge test` (67 tests, 256 fuzz runs
 each), `forge fmt --check`, `forge script` dry runs, `cast calldata` / `cast keccak` cross-checks of
 the Node tool. Slither and Mythril were not available in this environment. Passing tests are not an
-audit; this review was written by the same seat that built the code and a separate adversarial
-review follows in the workflow.
+audit; the original review below was written by the same seat that built the code. The separate
+revision review at the end records the subsequent findings, fixes, and independent agent checks.
 
 ## Entry points and who may call them
 
 | Function | Caller | State effect |
 |---|---|---|
 | `constructor(owner_, attester_)` | factory | sets owner, attester, domain separator; reverts on zero |
-| `approveQuestion(bytes32)` | owner only | marks one `questionHash` admissible, permanent |
+| `approveRequest(bytes32,bytes32)` | owner only | binds one actual `requestId` to its `questionHash`, permanent |
 | `transferOwnership(address)` / `acceptOwnership()` | owner / pending owner | two-step handover |
 | `submitAttestation(Attestation, bytes)` | anyone | stores an observation only after all checks |
 | readers | anyone | none |
@@ -30,16 +30,20 @@ No `receive`, no `fallback`, no payable function, no `selfdestruct`, `delegateca
 IMD's `questionHash` covers the pinned request, not the question text (verified: identical text,
 different windows, different hashes; ~450 candidate preimages including JSON and ABI encodings of the
 request fields did not reproduce it). The contract therefore cannot verify the question itself and
-relies on the owner approving each request's hash. Consequences the requester must accept:
+relies on the owner checking each request's text and full policy before approving its ID/hash pair.
+Consequences the requester must accept:
 
-- A careless owner can approve a request with a different question. The blast radius is one
-  request's single signed answer (hash ↔ pinned request, replay-protected by `requestId`).
+- A careless owner can approve a request with a different question or relaxed policy. The blast
+  radius is one request's single signed answer, now enforced by approval of both its ID and hash plus
+  replay protection. Hash-only approval was insufficient: distinct requests can share a hash while
+  changing tolerance or guards, which v2 does not sign. See the revision review below.
 - The owner can refuse to approve, which is a liveness control, not a price control. The owner
   cannot write a price. `test_ownerCannotSetPriceOrForgeAttestation`.
 
 Disposition: documented in README and `docs/deployment.md`; the template plus `QUESTION_TEXT_HASH`
-give the owner a byte-exact check. If IMD later publishes a text-only question identifier in the
-signed message, a redeploy could remove the role.
+give the owner a byte-exact text check; the full request settings also need inspection. If IMD later
+signs a canonical question identity and the complete required policy, a future redeployment could
+remove the role.
 
 ### F2. Attester is a single immutable key — accepted, documented
 
@@ -124,3 +128,52 @@ Fixed supply 10^27 to `msg.sender`, 18 decimals, no admin surface, exact transfe
 - Confirm `$owner` resolves to the requester's wallet, not a platform address, before admission.
 - Explorer verification of source after deployment.
 - Record the deployed address, deployment transaction and first `PriceUpdated` in the README.
+
+
+## Revision review — 2026-10-02
+
+**9e2fad735d293be35dc871d3dc8bdd4a193a9b32a8dee4477e3c0ca828258c6a — fixed.**
+The original hash-only approval accepted a correctly signed second request sharing the approved
+hash without its own approval. Both regression tests in `test/RequestApproval.t.sol` failed against
+the original implementation, before any observation and after the first observation.
+
+A separate agent also repeated the two unpaid `POST https://api.imd.fun/requests/quote` calls at
+14:24:49 UTC. With the template, consumer `0x1111111111111111111111111111111111111111` on Sepolia,
+and mainnet window 26104818–26105117, these quote orders both returned HTTP 201, `paidAt: null`:
+
+| Quote order ID (not oracle request ID) | Policy | Returned question hash |
+|---|---|---|
+| `61bcec40-7821-41df-b922-5dfc9b059747` | tolerance 0, template guards | `0xee262f936ec2f6bdbdc1590b41ed8d109cba6f019842fe73eb03ea6581b1deff` |
+| `50158240-68f5-4c65-8c88-7a7297404bad` | tolerance 10000, guards absent | `0xee262f936ec2f6bdbdc1590b41ed8d109cba6f019842fe73eb03ea6581b1deff` |
+
+The responses retained the different policies and had different input hashes. This verifies the
+policy collision, not a live exploit: no quote was paid and no relaxed-policy signature or onchain
+transaction was obtained. The local contract reproduction uses test signatures only.
+
+`approveRequest(requestId, questionHash)` now binds one actual oracle request ID to its hash;
+`submitAttestation` requires the exact pair. Zero values and replacing an existing binding are
+rejected. Replay protection still allows only one accepted answer per ID. The owner must check the
+specific request's text and full settings, including unsigned zero tolerance and guards; the runbook
+explains actual oracle UUID provenance and encoding. Repeated requests with the same hash and price
+need independent approvals and can refresh the feed. Permissionless relay remains available.
+
+**a28e5c7b84a1c3c86f976042b62577fb814d09a233c7ad723d7fdfe6015bbb80 — fixed.**
+Changing only the archived response's consumer metadata to a nonzero address reproduced exit 0 and
+"all offline checks pass" on chain 1 without options, and again with only matching `--feed`.
+The revised utility requires a valid nonzero independently supplied `--feed` and defaults expected
+chain to Sepolia. It rejects a missing response domain and mismatched consumer/chain. These checks
+validate metadata only; the contract still verifies the signature. The template and runbook use the
+new pair approval and explicit Sepolia configuration.
+
+**Independent agent review.** A separate agent in this session reviewed the revised contract,
+utility, tests, ABI and operational docs without editing the implementation. No concrete findings
+remained. It ran 49 targeted delivered Foundry tests and all 7 Node tests, plus 4 temporary
+adversarial tests (two fuzzed with 256 cases each): different ID with approved hash, different hash
+with approved ID, explicit approval then unchanged-price refresh and replay rejection, and invalid
+signature leaving approval usable. All passed. The temporary tests were removed; the four delivered
+request-approval regression tests remain. All three delivered ABIs matched compiled artifacts.
+
+Final local checks: `forge build`, `forge test` (71 passed, zero failed/skipped, 256 cases per fuzz
+test), `forge fmt --check`, and `node --test tools/prepare-update.test.mjs` (7 passed). Compiler remains
+solc 0.8.26. This is local independent agent review, not an external audit. Deployment and real
+attestation acceptance on Sepolia remain unverified; no live integration success is claimed.

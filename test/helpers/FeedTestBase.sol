@@ -27,11 +27,17 @@ abstract contract FeedTestBase is Test {
         vm.chainId(11_155_111);
         vm.warp(T0 + 600);
         feed = new LumineonPriceFeed(owner, attester);
-        vm.prank(owner);
-        feed.approveQuestion(APPROVED_QUESTION);
+        approve(baseAttestation(11_577, T0, 1));
     }
 
     // ------------------------------------------------------------------ attestation building
+
+    /// @dev Explicit approval step, separate from signing and relaying so negative tests cannot
+    ///      accidentally authorize the request they are testing.
+    function approve(OracleAttestation.Attestation memory a) internal {
+        vm.prank(owner);
+        feed.approveRequest(a.requestId, a.questionHash);
+    }
 
     function baseAttestation(uint256 priceCents, uint64 issuedAt, uint256 salt)
         internal

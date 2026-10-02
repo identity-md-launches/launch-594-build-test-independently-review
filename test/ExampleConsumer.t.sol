@@ -26,6 +26,7 @@ contract ExampleConsumerTest is FeedTestBase {
     }
 
     function test_consumerReadsFreshPrice() public {
+        approve(baseAttestation(11_577, T0, 21));
         submitSigned(baseAttestation(11_577, T0, 21));
         assertEq(consumer.requireAffordable(12_000), 11_577);
         assertEq(consumer.priceDollars(), 115);
@@ -38,6 +39,7 @@ contract ExampleConsumerTest is FeedTestBase {
     }
 
     function test_strictReadRevertsWhenStaleButLenientStillReports() public {
+        approve(baseAttestation(11_577, T0, 22));
         submitSigned(baseAttestation(11_577, T0, 22));
         vm.warp(T0 + 25 hours);
         vm.expectRevert(

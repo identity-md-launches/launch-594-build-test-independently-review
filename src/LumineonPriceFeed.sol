@@ -11,18 +11,17 @@ import {OracleAttestation} from "./OracleAttestation.sol";
 ///      price setter. Trust model:
 ///        - `attester`  (immutable): the IMD signer. Only its EIP-712 signatures over this
 ///                       contract's own domain (this chain id, this address) are accepted.
-///        - `owner`     (two-step transferable): approves the `questionHash` of each oracle request
+///        - `owner`     (two-step transferable): approves each (`requestId`, `questionHash`) pair
 ///                       whose answer may enter the feed. It cannot set a price, cannot forge an
 ///                       attestation, cannot revoke an approval and cannot change the attester.
 ///        - anyone:      may relay a valid attestation (`submitAttestation`) and read the feed.
 ///
-///      Why an approver exists: IMD hashes the whole pinned request, so every new request (even
-///      with identical text) carries a new `questionHash`. The contract cannot recompute it from the
-///      card question alone, and without a binding the first relayer of any attestation signed for
-///      this consumer could choose the question. The owner reads the hash from IMD's public API the
-///      moment the request is created, before any answer exists, and approves it. The canonical
-///      question text hash (`QUESTION_TEXT_HASH`) is exposed so an approver can check the request's
-///      text byte-for-byte before approving.
+///      Why an approver exists: IMD's `questionHash` covers pinned request content, not just the
+///      question text. Distinct requests can share it despite different toleranceBps or guards;
+///      those settings are absent from the signed v2 message. Before approving a specific request
+///      ID and hash, the owner must inspect that request's text AND settings against the template,
+///      including zero numeric tolerance and guards. The canonical text hash (`QUESTION_TEXT_HASH`)
+///      helps check the text; it cannot verify policy. Approval never extends to another request ID.
 contract LumineonPriceFeed {
     // ------------------------------------------------------------------ card and price definition
 
@@ -41,7 +40,7 @@ contract LumineonPriceFeed {
 
     /// @notice keccak256 of the exact UTF-8 question text in docs/oracle-request-template.json.
     /// @dev Metadata for approvers and relayers. It is NOT the signed `questionHash`: IMD's hash covers
-    ///      the whole pinned request (see contract notes).
+    ///      pinned request content, excluding some policy fields (see contract notes).
     bytes32 public constant QUESTION_TEXT_HASH = 0x3fbd772da2fd23d430b982d57a8e50a2e9a72e51764c7029881b4f30cabcce77;
 
     // ------------------------------------------------------------------ acceptance policy
@@ -85,7 +84,7 @@ contract LumineonPriceFeed {
     address public pendingOwner;
     Observation private _last;
     bool private _hasObservation;
-    mapping(bytes32 questionHash => bool approved) public approvedQuestions;
+    mapping(bytes32 requestId => bytes32 questionHash) public approvedRequests;
     mapping(bytes32 requestId => bool used) public usedRequests;
 
     // ------------------------------------------------------------------ events
@@ -102,7 +101,7 @@ contract LumineonPriceFeed {
         uint16 agreed,
         address relayer
     );
-    event QuestionApproved(bytes32 indexed questionHash, address indexed approver);
+    event RequestApproved(bytes32 indexed requestId, bytes32 indexed questionHash, address indexed approver);
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
@@ -112,8 +111,8 @@ contract LumineonPriceFeed {
     error NotOwner();
     error NotPendingOwner();
     error ZeroAddress();
-    error QuestionAlreadyApproved();
-    error QuestionNotApproved(bytes32 questionHash);
+    error RequestAlreadyApproved();
+    error RequestNotApproved(bytes32 requestId, bytes32 questionHash);
     error WrongQuestionChain(uint256 chainId);
     error WrongAnswerType(uint8 answerType);
     error MalformedAnswer();
@@ -153,15 +152,16 @@ contract LumineonPriceFeed {
         _;
     }
 
-    /// @notice Approve the `questionHash` of one IMD oracle request so its attestation may update
-    ///         the feed. Read the hash from `GET /oracle/requests/:id` after paying for the request.
-    /// @dev Approvals are permanent and cannot be revoked; each hash identifies one pinned request,
-    ///      so a mistaken approval admits at most that request's single signed answer.
-    function approveQuestion(bytes32 questionHash) external onlyOwner {
-        if (questionHash == bytes32(0)) revert InvalidConfiguration();
-        if (approvedQuestions[questionHash]) revert QuestionAlreadyApproved();
-        approvedQuestions[questionHash] = true;
-        emit QuestionApproved(questionHash, msg.sender);
+    /// @notice Approve one IMD request ID and its question hash after checking that actual request's
+    ///         text and settings from `GET /oracle/requests/:id` against the request template.
+    /// @dev requestId is IMD's oracle request UUID as 16 raw bytes, right-padded to bytes32, NOT a
+    ///      quote/order ID. Approvals are permanent and cannot be replaced or revoked. Replay
+    ///      protection limits an approval to one accepted answer, even when other IDs share its hash.
+    function approveRequest(bytes32 requestId, bytes32 questionHash) external onlyOwner {
+        if (requestId == bytes32(0) || questionHash == bytes32(0)) revert InvalidConfiguration();
+        if (approvedRequests[requestId] != bytes32(0)) revert RequestAlreadyApproved();
+        approvedRequests[requestId] = questionHash;
+        emit RequestApproved(requestId, questionHash, msg.sender);
     }
 
     /// @notice Begin a two-step ownership transfer. The new owner must call `acceptOwnership`.
@@ -182,12 +182,15 @@ contract LumineonPriceFeed {
     // ------------------------------------------------------------------ relay
 
     /// @notice Relay an IMD attestation. Anyone may call; only a valid signature from `attester`
-    ///         over this contract's domain, answering an approved question, can change the price.
+    ///         over this contract's domain, matching an approved request ID and hash, can change the price.
     /// @param a   The `message` of `GET /oracle/requests/:id/attestation`, field for field.
     /// @param sig The 65-byte `signature` from the same response.
     function submitAttestation(OracleAttestation.Attestation calldata a, bytes calldata sig) external {
         // 1. Question binding and chain context.
-        if (!approvedQuestions[a.questionHash]) revert QuestionNotApproved(a.questionHash);
+        bytes32 approvedHash = approvedRequests[a.requestId];
+        if (approvedHash == bytes32(0) || approvedHash != a.questionHash) {
+            revert RequestNotApproved(a.requestId, a.questionHash);
+        }
         if (a.chainId != QUESTION_CHAIN_ID) revert WrongQuestionChain(a.chainId);
 
         // 2. Answer encoding: a positive uint256 whose figure agrees with the encoded answer.

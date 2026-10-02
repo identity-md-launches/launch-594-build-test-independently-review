@@ -258,8 +258,13 @@
   },
   {
     "type": "function",
-    "name": "approveQuestion",
+    "name": "approveRequest",
     "inputs": [
+      {
+        "name": "requestId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
       {
         "name": "questionHash",
         "type": "bytes32",
@@ -271,19 +276,19 @@
   },
   {
     "type": "function",
-    "name": "approvedQuestions",
+    "name": "approvedRequests",
     "inputs": [
       {
-        "name": "questionHash",
+        "name": "requestId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
     ],
     "outputs": [
       {
-        "name": "approved",
-        "type": "bool",
-        "internalType": "bool"
+        "name": "questionHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -701,8 +706,14 @@
   },
   {
     "type": "event",
-    "name": "QuestionApproved",
+    "name": "RequestApproved",
     "inputs": [
+      {
+        "name": "requestId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
       {
         "name": "questionHash",
         "type": "bytes32",
@@ -905,19 +916,8 @@
   },
   {
     "type": "error",
-    "name": "QuestionAlreadyApproved",
+    "name": "RequestAlreadyApproved",
     "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "QuestionNotApproved",
-    "inputs": [
-      {
-        "name": "questionHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ]
   },
   {
     "type": "error",
@@ -925,6 +925,22 @@
     "inputs": [
       {
         "name": "requestId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "RequestNotApproved",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "questionHash",
         "type": "bytes32",
         "internalType": "bytes32"
       }

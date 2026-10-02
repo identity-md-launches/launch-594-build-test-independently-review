@@ -41,15 +41,17 @@ requester pays IMD        IMD panel (20 seats)        IMD attester            an
  oracle.request  ───────►  reads PriceCharting ────►  signs EIP-712 ───────►  relays calldata ──►  verifies, stores, emits
  (template below)          ≥14 must agree             (version 2 schema)      (external wallet)    PriceUpdated
                                       ▲
-      owner approves the request's questionHash (once per request, before relay)
+      owner approves the requestId + questionHash (once per request, before relay)
 ```
 
 1. The requester submits the oracle request in `docs/oracle-request-template.json` to IMD
    (`oracle.request`, see <https://imd.fun/docs/#oracle-body>), with `consumer.verifyingContract`
    set to the deployed feed address in lowercase and `consumer.chainId` 11155111.
-2. IMD immediately shows the request's `questionHash` at `GET https://api.imd.fun/oracle/requests/<id>`.
-   The feed **owner** calls `approveQuestion(questionHash)`. This can and should happen before the
-   panel has answered, so the owner never picks an answer, only a question.
+2. The feed **owner** checks that specific oracle request at
+   `GET https://api.imd.fun/oracle/requests/<id>` against the entire template, including zero tolerance
+   and guards, then calls `approveRequest(requestId, questionHash)`. Use the actual oracle request ID,
+   not the quote/order ID. This can and should happen before the panel answers; approval binds the
+   request and its policy, not a chosen price. See `docs/deployment.md` for ID encoding and checks.
 3. When the request reads `attested`, anyone downloads
    `GET https://api.imd.fun/oracle/requests/<id>/attestation`, runs `tools/prepare-update.mjs` on it,
    and sends the printed calldata to the feed from any wallet.
@@ -60,7 +62,7 @@ requester pays IMD        IMD panel (20 seats)        IMD attester            an
 
 | Check | Revert |
 |---|---|
-| `questionHash` was approved by the owner | `QuestionNotApproved` |
+| exact (`requestId`, `questionHash`) pair was approved by the owner | `RequestNotApproved` |
 | signed `chainId` field is 1 (the chain the request's window is pinned on; see template) | `WrongQuestionChain` |
 | `answerType` is 3 (uint256) | `WrongAnswerType` |
 | `answer` is exactly 32 bytes and decodes to `figure` | `MalformedAnswer`, `AnswerFigureMismatch` |
@@ -72,7 +74,7 @@ requester pays IMD        IMD panel (20 seats)        IMD attester            an
 | EIP-712 signature by the pinned IMD attester over **this contract's** domain (Sepolia + this address) | `InvalidSignature` |
 
 A newly signed observation with the **same** price as before is accepted: it is newer, so it refreshes
-freshness.
+freshness, once its own request ID and hash have been approved.
 
 ### Reading the feed
 
@@ -96,22 +98,28 @@ strict reader reverting when empty or stale while the lenient reader still retur
 | Who | Can | Cannot |
 |---|---|---|
 | IMD attester (`attester`, immutable, `0x5598Aa9146215Bc13eb26f2c692Ad1461Fd32982`) | Produce the only signatures the feed accepts | Bypass panel floors, age rules, replay or question approval |
-| Owner (`owner`, set from the requester's `$owner`, two-step transferable) | `approveQuestion(bytes32)`; `transferOwnership` / `acceptOwnership` | Set a price, forge or replay an attestation, revoke an approval, change the attester, pause, upgrade, withdraw anything |
+| Owner (`owner`, set from the requester's `$owner`, two-step transferable) | `approveRequest(bytes32,bytes32)`; `transferOwnership` / `acceptOwnership` | Set a price, forge or replay an attestation, revoke an approval, change the attester, pause, upgrade, withdraw anything |
 | Anyone | `submitAttestation`, all readers | Change state without a valid attestation |
 
-**Why an owner exists at all.** IMD's `questionHash` covers the whole pinned request, not just the
+**Why an owner exists at all.** IMD's `questionHash` covers pinned request content, not just the
 question text: on 2026-10-02 two requests with byte-identical text but different pinned block windows
 carried different hashes (`13a914c0…` → `0xa0db6dd1…`, `9b688860…` → `0xf15ed26e…`), and the hash of
 the raw question text does not match either. So the contract cannot hard-code one hash, and it cannot
 recompute the hash from the signed message. Without a binding, anyone could pay IMD for *any*
 question whose `consumer` is this feed (for example "what is 2+2") and relay a valid signature. The
-owner's approval is what binds the feed to the card question; the owner should compare the request's
-text to the template (its keccak256 is `QUESTION_TEXT_HASH`) before approving.
+owner's approval binds the feed to the specific request. Before approving, compare its question
+text (keccak256 `QUESTION_TEXT_HASH`), definitions, evidence, source guards, panel settings, zero
+tolerance, validity and consumer configuration with the template. **The v2 signature does not include
+`toleranceBps` or `guards`, and the question hash does not distinguish changes to those fields.**
+Signed agreement counts alone cannot establish exact agreement. The owner must check this policy
+for each actual request ID; comparing hashes alone is insufficient.
 
-**Repeated requests stay compatible** because every request made from the template has the same
-text, the same `consumer`, and the same panel settings; only the window and the hash differ, and the
-owner approves each new hash. Each hash identifies one pinned request, so a mistaken approval admits
-at most that one request's single signed answer, which is why there is no revoke.
+**Repeated requests stay compatible** because the owner approves each new request ID with its
+question hash after checking its settings. A new window may change the hash, while a reused window
+may produce the same hash for distinct requests. Neither case shares authorization: each ID needs
+its own approval, even for an unchanged price. `approvedRequests(requestId)` returns its approved
+hash (zero when unapproved). A binding cannot be replaced or revoked; replay protection limits it to
+one accepted answer. A mistaken approval therefore admits at most that specific request's answer.
 
 **Residual trust.** The owner can decline to approve a request it dislikes, and the owner key is a
 single key. IMD's attester is a single key operated by IMD. The panel reads a third-party website;
@@ -135,10 +143,11 @@ Foundry with solc 0.8.26 (pinned in `foundry.toml`, `evm_version = "paris"`, opt
 forge build
 forge test
 forge fmt --check
+node --test tools/prepare-update.test.mjs
 EXPECTED_CHAIN_ID=0 forge script script/Deploy.s.sol:Deploy --offline   # local dry run, no keys
 ```
 
-67 tests pass (`forge test -vv` for the list). Coverage, by file:
+71 Foundry tests and 7 Node utility tests pass (`forge test -vv` for the list). Coverage, by file:
 
 - `test/LumineonPriceFeed.t.sol`: two successive updates, unchanged-price refresh, permissionless
   relay, boundary at exactly 24h and at `expiresAt`, signed expiry shorter than 24h, reads never renew
@@ -149,6 +158,11 @@ EXPECTED_CHAIN_ID=0 forge script script/Deploy.s.sol:Deploy --offline   # local 
   answer type, malformed answer bytes, answer/figure conflict, zero price, expired, older than 24h with
   a long IMD validity, future-issued, expiry before issue, replay, reused request id, out-of-order
   older/equal issue time, stale feed accepting a newer attestation, selector pin, no ETH accepted.
+- `test/RequestApproval.t.sol`: rejects a distinct signed request sharing an approved hash before
+  and after an observation, permits unchanged-price refresh after its own approval, rejects zero
+  hashes and IDs. The first two regressions failed on the previous hash-only approval implementation.
+- `tools/prepare-update.test.mjs`: missing/invalid feed, wrong consumer or chain, missing domain,
+  and matching metadata. Altered fixture domains test metadata validation, not valid signatures.
 - `test/LumineonPriceFeed.fuzz.t.sol`: random prices/ages/validities, random panel counts against the
   floor rules, random signer keys, random domains, strict ordering of issue times, freshness as a pure
   function of time, arbitrary answer bytes versus figure.
@@ -188,16 +202,22 @@ curl -s https://api.imd.fun/oracle/requests/<REQUEST_ID>/attestation > attestati
 node tools/prepare-update.mjs attestation.json --feed <FEED_ADDRESS> --chain 11155111
 ```
 
+Supply `--feed` from the deployment handoff, independently of the response: it is required.
+The expected chain defaults to Sepolia (11155111); the explicit flag above makes it visible.
 The script has no dependencies and never touches a key or a network. It prints the decoded price,
 the ABI-encoded `submitAttestation` calldata (its selector is `0x383f5938`), every rejection reason it
 can judge offline, and ready-to-edit commands:
 
 ```bash
 # owner, once per request
-cast send <FEED> "approveQuestion(bytes32)" <QUESTION_HASH> --rpc-url <SEPOLIA_RPC> --ledger
+cast send <FEED> "approveRequest(bytes32,bytes32)" <REQUEST_ID_BYTES32> <QUESTION_HASH> --rpc-url <SEPOLIA_RPC> --ledger
 # anyone, after the request is attested (dry-run with `cast call` first)
 cast send <FEED> <CALLDATA> --rpc-url <SEPOLIA_RPC> --ledger
 ```
+
+Before the owner sends the approval, check that actual request's full policy using the deployment
+runbook. The tool cannot recover unsigned tolerance/guard settings from an attestation or verify
+the signature offline; the feed verifies the signature during the dry run and relay.
 
 Use `--ledger`, `--trezor`, `--keystore <file>` or `--interactive` so the key stays in the wallet.
 Any wallet that can send raw calldata (Safe, Frame, Rabby "custom data") works the same way. Never
@@ -214,7 +234,7 @@ with this feed as `consumer`, and no attestation has been accepted on-chain. The
 integration should be described as succeeded only after a `PriceUpdated` event exists on Sepolia.
 
 After IMD's deployer publishes the launch, record here: feed address, deployment transaction, the
-first approved `questionHash`, and the first `PriceUpdated` transaction.
+first approved (`requestId`, `questionHash`) pair, and the first `PriceUpdated` transaction.
 
 ## Out of scope
 

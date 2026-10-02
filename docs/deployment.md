@@ -12,7 +12,7 @@ the independent review. No contributor signs a transaction; no key appears in th
 | launch token | `LaunchToken` (`src/LaunchToken.sol`), no constructor arguments, name `lumineon`, symbol `lumi`, 18 decimals |
 | application contracts | exactly one: `LumineonPriceFeed` (`src/LumineonPriceFeed.sol`) |
 | `LumineonPriceFeed` constructor | `(address owner_, address attester_)` |
-| `owner_` | `$owner` (the requester's configured wallet). **Never** the factory's `msg.sender`: the factory is immutable and could never call `approveQuestion`, which would leave the feed permanently unable to accept any answer. |
+| `owner_` | `$owner` (the requester's configured wallet). **Never** the factory's `msg.sender`: the factory is immutable and could never call `approveRequest`, which would leave the feed permanently unable to accept any answer. |
 | `attester_` | `0x5598Aa9146215Bc13eb26f2c692Ad1461Fd32982` (IMD attestation signer; `GET https://api.imd.fun/oracle/requests` → `attester`, and recovered from live signatures in `test/RealAttestationCompatibility.t.sol`) |
 | pool | pairs `lumi` with native ETH; manifest fee 3000, tickSpacing 60, `initialPrice` `79228162514264337593543950336`; the factory supplies PoolInitializationGuard, LP and MerkleDistributor; the pool opens at the network's trading fee, not 0.3% |
 | compiler | solc 0.8.26, optimizer 200 runs, EVM paris, `bytecode_hash = "none"`, `cbor_metadata = false` |
@@ -37,16 +37,37 @@ contract has no initializer: it is fully configured at construction and starts w
    address in lowercase and pay IMD for `oracle.request`. Keep `panelSize` 20, `quorum` 14,
    `toleranceBps` 0, `validForSeconds` 86400, `answerType` uint256, `chainId` 1 and the question text
    unchanged. The paid `/requests/quote` route refuses a checksummed consumer address.
-3. **Approve**: read `questionHash` from `GET https://api.imd.fun/oracle/requests/<id>`, confirm the
-   request's `question` is byte-identical to the template (its keccak256 is
+3. **Approve**: obtain the actual oracle UUID from `admission.result.requestId` (see
+   [IMD paid-request documentation](https://imd.fun/docs/#paid-requests)), then fetch
+   `GET https://api.imd.fun/oracle/requests/<id>` and check that **specific request** against the
+   entire template. Confirm byte-identical question text (keccak256
    `LumineonPriceFeed.QUESTION_TEXT_HASH` = `0x3fbd772da2fd23d430b982d57a8e50a2e9a72e51764c7029881b4f30cabcce77`),
-   then call `approveQuestion(questionHash)` from the owner wallet.
+   definitions, `evidence: panel`, 20 seats, quorum 14, `toleranceBps: 0`, all source/value guards,
+   `validForSeconds: 86400`, `answerType: uint256`, question `chainId: 1`, and consumer
+   `{chainId: 11155111, verifyingContract: <deployed feed>}`. Tolerance and guards are absent from
+   the v2 signed message and changing them can leave `questionHash` unchanged. A matching hash
+   or signed 20/14 counts therefore do not replace this inspection.
+
+   Convert the oracle UUID to bytes32 by removing hyphens and appending 32 zero hex digits
+   (16 raw UUID bytes, followed by 16 zero bytes), as required by
+   [IMD's attestation format](https://imd.fun/docs/#the-attestation). For example, the archived
+   request `ac82ce11-8ed0-48ef-bbba-49eea11c23b1` becomes
+   `0xac82ce118ed048efbbba49eea11c23b100000000000000000000000000000000`; this is an encoding
+   example, not a request to approve for this feed. Do not use the quote/order ID or `requestKey`.
+   The attestation's `message.requestId` already has this bytes32 form and must match the request
+   you inspected. From the owner wallet call `approveRequest(requestId, questionHash)` using the
+   verified ID and that request's hash.
 4. **Relay**: once the request is `attested` and within 24 hours of `issuedAt`, run
-   `node tools/prepare-update.mjs attestation.json --feed <FEED>` and send the calldata from any wallet.
+   `node tools/prepare-update.mjs attestation.json --feed <FEED> --chain 11155111` and send the calldata from any wallet.
    A dry run with `cast call` costs nothing and returns the exact revert reason if something is off.
 5. **Verify**: `PriceUpdated` event in the transaction, `priceCents()` returns the value,
    `isFresh()` is true.
-6. **Repeat** for each new request. Each one needs its own approval; approvals are permanent.
+6. **Repeat** for each new request ID, even if its hash or price is unchanged. Each ID needs its own
+   approval; approvals are permanent, cannot be reassigned, and allow only one accepted answer.
+
+`--feed` is required and must come independently from the deployment handoff. The utility defaults
+its expected chain to Sepolia; the command above supplies it explicitly. Its offline checks do not
+verify signatures or inspect request policy. Use the owner checks above and dry-run the relay.
 
 ## Trust and limits, restated for the reviewer
 
