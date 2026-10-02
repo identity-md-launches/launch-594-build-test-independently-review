@@ -71,6 +71,61 @@ contract RealAttestationCompatibilityTest is Test {
         assertTrue(harness.recover(harness.digest(separator, a), realSignature()) != IMD_ATTESTER);
     }
 
+    /// @dev Use the recorded IMD signature, not a test signature produced with the library under test.
+    /// Every field is checked, including block-window evidence that the consumer does not otherwise read.
+    function test_eachOfTheFifteenSignedFieldsIsAuthenticated() public view {
+        bytes32 separator = harness.domainSeparator(1, address(0));
+        bytes32 originalDigest = harness.digest(separator, realAttestation());
+        for (uint256 field; field < 15; ++field) {
+            OracleAttestation.Attestation memory a = realAttestation();
+            if (field == 0) a.requestId ^= bytes32(uint256(1) << 128);
+            else if (field == 1) a.chainId = 11_155_111;
+            else if (field == 2) a.questionHash ^= bytes32(uint256(1));
+            else if (field == 3) a.answerType = 2;
+            else if (field == 4) a.answer[31] ^= bytes1(uint8(1));
+            else if (field == 5) a.figure += 1;
+            else if (field == 6) a.fromBlock += 1;
+            else if (field == 7) a.toBlock += 1;
+            else if (field == 8) a.blockHash ^= bytes32(uint256(1));
+            else if (field == 9) a.panelJobId ^= bytes32(uint256(1) << 128);
+            else if (field == 10) a.panelSize += 1;
+            else if (field == 11) a.quorum += 1;
+            else if (field == 12) a.agreed += 1;
+            else if (field == 13) a.issuedAt += 1;
+            else a.expiresAt += 1;
+
+            bytes32 changedDigest = harness.digest(separator, a);
+            assertNotEq(changedDigest, originalDigest, "a signed field was omitted from the digest");
+            assertNotEq(harness.recover(changedDigest, realSignature()), IMD_ATTESTER, "changed field authenticated");
+        }
+    }
+
+    function test_realSignatureBindsEveryDomainComponent() public view {
+        // All values come from the recorded API response's domain, independently of library constants.
+        bytes32[5] memory words;
+        words[0] = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+        words[1] = keccak256("IdentityMD Oracle");
+        words[2] = keccak256("2");
+        words[3] = bytes32(uint256(1));
+        words[4] = bytes32(0);
+        bytes32 separator = keccak256(abi.encode(words));
+        assertEq(harness.recover(harness.digest(separator, realAttestation()), realSignature()), IMD_ATTESTER);
+
+        for (uint256 component = 1; component < 5; ++component) {
+            bytes32 saved = words[component];
+            if (component == 1) words[component] = keccak256("Unrelated Oracle");
+            else if (component == 2) words[component] = keccak256("1");
+            else if (component == 3) words[component] = bytes32(uint256(11_155_111));
+            else words[component] = bytes32(uint256(uint160(address(harness))));
+            assertNotEq(
+                harness.recover(harness.digest(keccak256(abi.encode(words)), realAttestation()), realSignature()),
+                IMD_ATTESTER,
+                "signature was accepted under an altered domain"
+            );
+            words[component] = saved;
+        }
+    }
+
     function test_sepoliaFeedRefusesDefaultDomainAttestation() public {
         vm.chainId(11_155_111);
         vm.warp(1_790_947_696 + 3600);
