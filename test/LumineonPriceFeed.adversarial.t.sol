@@ -8,10 +8,13 @@ import {OracleAttestation} from "../src/OracleAttestation.sol";
 contract LumineonPriceFeedAdversarialTest is FeedTestBase {
     function test_everyRejectionPreservesHistoryAndAllowsCorrectedRequest() public {
         submitSigned(baseAttestation(11_577, T0, 1));
-        for (uint256 fault; fault < 19; ++fault) {
-            // Each failed relay starts with a populated feed, then retries the same request ID correctly.
+        for (uint256 fault; fault < 20; ++fault) {
+            // Each failed relay starts with a populated feed and an owner-approved request, then
+            // retries the same request ID correctly. Approval precedes the fault so every rejection
+            // below is caused by the fault itself and not by a missing binding.
             OracleAttestation.Attestation memory valid =
                 baseAttestation(12_001 + fault, T0 + uint64(fault) + 1, fault + 2);
+            approve(valid);
             (OracleAttestation.Attestation memory invalid, bytes memory expected) = _invalidCandidate(fault, valid);
             bytes memory sig = sign(invalid);
             if (fault == 15) sig = hex"deadbeef";
@@ -36,8 +39,15 @@ contract LumineonPriceFeedAdversarialTest is FeedTestBase {
         // Deep copy: corrupting a dynamic answer must never mutate the valid retry fixture.
         a = abi.decode(abi.encode(original), (OracleAttestation.Attestation));
         if (fault == 0) {
+            // Approved request ID, but a hash other than the one the owner bound to it.
             a.questionHash = OTHER_QUESTION;
-            expected = abi.encodeWithSelector(LumineonPriceFeed.QuestionNotApproved.selector, OTHER_QUESTION);
+            expected =
+                abi.encodeWithSelector(LumineonPriceFeed.RequestNotApproved.selector, a.requestId, OTHER_QUESTION);
+        } else if (fault == 19) {
+            // Approved hash, but a request ID the owner never approved (one bit of the UUID flipped).
+            a.requestId ^= bytes32(uint256(1) << 128);
+            expected =
+                abi.encodeWithSelector(LumineonPriceFeed.RequestNotApproved.selector, a.requestId, a.questionHash);
         } else if (fault == 1) {
             a.chainId = 11_155_111;
             expected = abi.encodeWithSelector(LumineonPriceFeed.WrongQuestionChain.selector, a.chainId);
@@ -92,12 +102,28 @@ contract LumineonPriceFeedAdversarialTest is FeedTestBase {
         }
     }
 
-    function test_replayCannotBeLaunderedThroughAnotherApprovedQuestion() public {
+    function test_replayCannotBeLaunderedThroughRebindingOrAnotherHash() public {
         OracleAttestation.Attestation memory a = baseAttestation(11_577, T0, 1);
         submitSigned(a);
+
+        // A consumed request keeps its binding: the owner cannot rebind it to another hash, so a
+        // re-signed answer for the same ID under a different hash never reaches the replay check.
         vm.prank(owner);
-        feed.approveQuestion(OTHER_QUESTION);
-        a.questionHash = OTHER_QUESTION;
+        vm.expectRevert(LumineonPriceFeed.RequestAlreadyApproved.selector);
+        feed.approveRequest(a.requestId, OTHER_QUESTION);
+        assertEq(feed.approvedRequests(a.requestId), APPROVED_QUESTION);
+        OracleAttestation.Attestation memory relabelled = abi.decode(abi.encode(a), (OracleAttestation.Attestation));
+        relabelled.questionHash = OTHER_QUESTION;
+        relabelled.issuedAt += 1;
+        relabelled.figure = 20_000;
+        relabelled.answer = abi.encode(relabelled.figure);
+        _rejectWithoutChangingState(
+            relabelled,
+            sign(relabelled),
+            abi.encodeWithSelector(LumineonPriceFeed.RequestNotApproved.selector, a.requestId, OTHER_QUESTION)
+        );
+
+        // Re-signed under the bound hash with a newer time and a new price: still the same request ID.
         a.issuedAt += 1;
         a.figure = 20_000;
         a.answer = abi.encode(a.figure);
@@ -106,25 +132,108 @@ contract LumineonPriceFeedAdversarialTest is FeedTestBase {
         );
     }
 
-    function test_approvalAloneCannotAuthenticateASignatureForAnotherQuestion() public {
-        OracleAttestation.Attestation memory a = baseAttestation(11_577, T0, 1);
-        bytes memory originalSignature = sign(a);
-        vm.prank(owner);
-        feed.approveQuestion(OTHER_QUESTION);
-        a.questionHash = OTHER_QUESTION;
+    function test_approvalOfAPairCannotAuthenticateAnotherRequestsSignature() public {
+        OracleAttestation.Attestation memory first = baseAttestation(11_577, T0, 1);
+        OracleAttestation.Attestation memory second = baseAttestation(11_577, T0, 2);
+        second.questionHash = OTHER_QUESTION;
+        approve(second);
+        bytes memory firstSignature = sign(first);
+        bytes memory secondSignature = sign(second);
+
+        // Both pairs are approved; a signature made over one request never authenticates the other.
         _rejectWithoutChangingState(
-            a, originalSignature, abi.encodeWithSelector(LumineonPriceFeed.InvalidSignature.selector)
+            second, firstSignature, abi.encodeWithSelector(LumineonPriceFeed.InvalidSignature.selector)
         );
-        assertFalse(feed.usedRequests(a.requestId));
-        a.questionHash = APPROVED_QUESTION;
-        submit(a, originalSignature);
+        _rejectWithoutChangingState(
+            first, secondSignature, abi.encodeWithSelector(LumineonPriceFeed.InvalidSignature.selector)
+        );
+        assertFalse(feed.usedRequests(first.requestId));
+        assertFalse(feed.usedRequests(second.requestId));
+
+        // Each request is then accepted with its own signature, in issuance order, sharing no hash.
+        submit(first, firstSignature);
+        second.issuedAt += 1;
+        submit(second, sign(second));
+        (LumineonPriceFeed.Observation memory stored,) = feed.latestObservation();
+        assertEq(stored.requestId, second.requestId);
+        assertEq(stored.questionHash, OTHER_QUESTION);
+    }
+
+    function test_manyRequestsMayShareOneHashButEachNeedsItsOwnApprovalAndIsUsedOnce() public {
+        // Repeated requests for the same card carry the same hash; each is approved and consumed on its own.
+        for (uint256 i = 1; i <= 4; ++i) {
+            OracleAttestation.Attestation memory a = baseAttestation(11_577, T0 + uint64(i), i);
+            if (i == 1) {
+                // Approved in setUp; its approval does not extend to the later IDs.
+                assertEq(feed.approvedRequests(a.requestId), APPROVED_QUESTION);
+            } else {
+                _rejectWithoutChangingState(
+                    a,
+                    sign(a),
+                    abi.encodeWithSelector(
+                        LumineonPriceFeed.RequestNotApproved.selector, a.requestId, APPROVED_QUESTION
+                    )
+                );
+                approve(a);
+            }
+            submitSigned(a);
+            (LumineonPriceFeed.Observation memory stored, bool fresh) = feed.latestObservation();
+            assertEq(stored.requestId, a.requestId);
+            assertEq(stored.issuedAt, T0 + uint64(i));
+            assertTrue(fresh);
+        }
+        for (uint256 i = 1; i <= 4; ++i) {
+            OracleAttestation.Attestation memory again = baseAttestation(11_577, T0 + 10, i);
+            _rejectWithoutChangingState(
+                again,
+                sign(again),
+                abi.encodeWithSelector(LumineonPriceFeed.RequestAlreadyUsed.selector, again.requestId)
+            );
+            assertEq(feed.approvedRequests(again.requestId), APPROVED_QUESTION, "use must not erase the binding");
+        }
+    }
+
+    /// forge-config: default.fuzz.runs = 1000
+    function testFuzz_onlyTheExactApprovedPairIsAdmitted(bytes32 requestId, bytes32 questionHash, uint256 flip) public {
+        // Pin non-zero values with bound rather than discarding runs; zero is covered by unit tests.
+        requestId = bytes32(bound(uint256(requestId), 1, type(uint256).max));
+        questionHash = bytes32(bound(uint256(questionHash), 1, type(uint256).max));
+        bytes32 difference = bytes32(bound(flip, 1, type(uint256).max));
+        // The fuzzer may replay the setUp-approved ID from the dictionary; move off it instead of discarding.
+        if (feed.approvedRequests(requestId) != bytes32(0)) requestId = keccak256(abi.encode(requestId));
+        vm.prank(owner);
+        feed.approveRequest(requestId, questionHash);
+        assertEq(feed.approvedRequests(requestId), questionHash);
+
+        OracleAttestation.Attestation memory a = baseAttestation(11_577, T0, 1);
+        a.requestId = requestId;
+        a.questionHash = questionHash ^ difference;
+        _rejectWithoutChangingState(
+            a, sign(a), abi.encodeWithSelector(LumineonPriceFeed.RequestNotApproved.selector, requestId, a.questionHash)
+        );
+        a.requestId = requestId ^ difference;
+        a.questionHash = questionHash;
+        if (feed.approvedRequests(a.requestId) == bytes32(0)) {
+            _rejectWithoutChangingState(
+                a,
+                sign(a),
+                abi.encodeWithSelector(LumineonPriceFeed.RequestNotApproved.selector, a.requestId, questionHash)
+            );
+        }
+        a.requestId = requestId;
+        submitSigned(a);
+        (LumineonPriceFeed.Observation memory stored,) = feed.latestObservation();
+        assertEq(stored.requestId, requestId);
+        assertEq(stored.questionHash, questionHash);
     }
 
     function test_oneCentAndMaximumUintPriceAreStoredWithoutNarrowing() public {
         submitSigned(baseAttestation(1, T0, 1));
         (uint256 cents,) = feed.priceCents();
         assertEq(cents, 1);
-        submitSigned(baseAttestation(type(uint256).max, T0 + 1, 2));
+        OracleAttestation.Attestation memory maximum = baseAttestation(type(uint256).max, T0 + 1, 2);
+        approve(maximum);
+        submitSigned(maximum);
         (cents,) = feed.priceCents();
         assertEq(cents, type(uint256).max);
     }
@@ -215,16 +324,25 @@ contract LumineonPriceFeedAdversarialTest is FeedTestBase {
         vm.expectRevert(LumineonPriceFeed.NotPendingOwner.selector);
         feed.acceptOwnership();
         vm.expectRevert(LumineonPriceFeed.NotOwner.selector);
-        feed.approveQuestion(OTHER_QUESTION);
+        feed.approveRequest(bytes32(uint256(99)), OTHER_QUESTION);
         vm.stopPrank();
         vm.prank(accepted);
         feed.acceptOwnership();
         assertEq(feed.owner(), accepted);
         assertEq(feed.pendingOwner(), address(0));
-        assertTrue(feed.approvedQuestions(APPROVED_QUESTION));
-        assertFalse(feed.approvedQuestions(OTHER_QUESTION));
+        bytes32 firstRequest = baseAttestation(11_577, T0, 1).requestId;
+        assertEq(feed.approvedRequests(firstRequest), APPROVED_QUESTION, "handover must keep earlier bindings");
+        assertEq(feed.approvedRequests(bytes32(uint256(99))), bytes32(0));
         assertEq(feed.attester(), attester);
         submitSigned(baseAttestation(11_577, T0, 1));
+        // Only the accepted owner may bind new requests after the handover.
+        OracleAttestation.Attestation memory next = baseAttestation(11_577, T0 + 1, 2);
+        vm.prank(owner);
+        vm.expectRevert(LumineonPriceFeed.NotOwner.selector);
+        feed.approveRequest(next.requestId, next.questionHash);
+        vm.prank(accepted);
+        feed.approveRequest(next.requestId, next.questionHash);
+        submitSigned(next);
     }
 
     function _rejectWithoutChangingState(
